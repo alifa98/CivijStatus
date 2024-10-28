@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Civij.com Services Status</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <canvas id="responseTimeChart" width="800" height="400"></canvas>
+    <script>
+        async function loadCSV() {
+            const response = await fetch('uptime_log.csv');
+            const csvText = await response.text();
+            return csvText;
+        }
+
+        function parseCSV(csvText) {
+            const rows = csvText.split('\n');
+            const parsedData = {};
+
+            rows.forEach(row => {
+                if (row.trim() === '') return;  // Ignore empty lines
+                const [timestamp, url, status, responseTime] = row.split(',');
+
+                if (!parsedData[url]) {
+                    parsedData[url] = {
+                        labels: [],
+                        responseTimes: [],
+                        statuses: []
+                    };
+                }
+
+                parsedData[url].labels.push(timestamp);
+                parsedData[url].responseTimes.push(responseTime === 'None' ? null : parseFloat(responseTime));
+                parsedData[url].statuses.push(status === 'True');
+            });
+
+            return parsedData;
+        }
+
+        function getAllUniqueLabels(parsedData) {
+            const labelSet = new Set();
+
+            Object.keys(parsedData).forEach(url => {
+                parsedData[url].labels.forEach(label => labelSet.add(label));
+            });
+
+            // Sort labels
+            return Array.from(labelSet).sort((a, b) => new Date(a) - new Date(b));
+        }
+
+        function alignData(parsedData, allLabels) {
+            const alignedData = {};
+
+            Object.keys(parsedData).forEach(url => {
+                const urlData = parsedData[url];
+                alignedData[url] = {
+                    responseTimes: Array(allLabels.length).fill(null),
+                    statuses: Array(allLabels.length).fill(null)
+                };
+
+                urlData.labels.forEach((label, index) => {
+                    const allLabelsIndex = allLabels.indexOf(label);
+                    alignedData[url].responseTimes[allLabelsIndex] = urlData.responseTimes[index];
+                    alignedData[url].statuses[allLabelsIndex] = urlData.statuses[index];
+                });
+            });
+
+            return alignedData;
+        }
+
+        async function drawChart() {
+            const csvText = await loadCSV();
+            const parsedData = parseCSV(csvText);
+            const allLabels = getAllUniqueLabels(parsedData);
+            const alignedData = alignData(parsedData, allLabels);
+
+            const ctx = document.getElementById('responseTimeChart').getContext('2d');
+            const datasets = [];
+
+            Object.keys(alignedData).forEach(url => {
+                const responseTimes = alignedData[url].responseTimes;
+                const statuses = alignedData[url].statuses;
+
+                // Create two datasets per URL: one for true status, one for false status
+                datasets.push({
+                    label: `${url} (Up)`,
+                    data: responseTimes.map((val, idx) => statuses[idx] ? val : null),
+                    borderColor: 'green',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    fill: false,
+                    spanGaps: true
+                });
+
+                datasets.push({
+                    label: `${url} (Down)`,
+                    data: responseTimes.map((val, idx) => statuses[idx] === false ? 0 : null), // Check for False status not (null) or (not true) status.
+                    borderColor: 'red',
+                    borderWidth: 2,
+                    pointRadius: 5,
+                    pointStyle: 'triangle', // Different marker for down status
+                    fill: false,
+                    showLine: false // Only show points, no line
+                });
+            });
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: allLabels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    // hide the legend
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Response Time'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Response Time (Seconds)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Timestamp'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        drawChart();
+
+    </script>
+</body>
+
+</html>
