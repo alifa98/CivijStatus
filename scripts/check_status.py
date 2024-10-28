@@ -62,6 +62,8 @@ def update_github_log(log_content):
 
 # List of websites to check
 websites = ["https://app.civij.com", "https://civij.com"]
+all_logs = []
+
 for website in websites:
     status, response_time = check_website(website)
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
@@ -71,6 +73,10 @@ for website in websites:
     
     # Log the status (True/False) and response time
     log_content = f"{current_time},{website},{status},{response_time}"
-    
-    # Update the log in the GitHub repository
-    update_github_log(log_content)
+    all_logs.append(log_content)
+
+# Combine all logs into a single string with line breaks
+combined_log_content = "\n".join(all_logs)
+
+# Update the log in the GitHub repository with a single commit
+update_github_log(combined_log_content)
